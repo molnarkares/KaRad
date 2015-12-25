@@ -47,7 +47,7 @@ const char ap_hostname[] = "KaRad1";
 #define CFG_VALID	0x1abbcc
 
 void configModeCallback () {
-	  digitalWrite(led_pin, LOW); //turn LED on if AP mode i.e. configuration is needed
+	digitalWrite(led_pin, LOW); //turn LED on if AP mode i.e. configuration is needed
 }
 
 enum sensorState_t {
@@ -76,137 +76,138 @@ uint32_t cpm;
 
 void setup() {
 #ifdef WDT_ENABLED
-  ESP.wdtEnable(10000);
+	ESP.wdtEnable(10000);
 #endif
-  bool report = false;
-  //the wakeup was caused by a new impulse form the GM tube
-  uint32_t t_now = millis();//we store ms not us
-  system_rtc_mem_read(65, &rtcStore, sizeof(rtcStore));
-  pinMode(led_pin, OUTPUT);
+	bool report = false;
+	//the wakeup was caused by a new impulse form the GM tube
+	uint32_t t_now = millis();//we store ms not us
+	system_rtc_mem_read(65, &rtcStore, sizeof(rtcStore));
+	pinMode(led_pin, OUTPUT);
 
-  if(rtcStore.s_valid != CFG_VALID) {
-	  rtcStore.s_cpm = 0;
-	  rtcStore.s_time = system_get_time()/1000;
-	  rtcStore.s_beep = 0;
-	  rtcStore.s_report = 0;
-	  rtcStore.sensorState = sensor_unknown;
-	  rtcStore.s_valid = CFG_VALID;
-	  cpm = 0;
-  }else {
-	  uint32_t t_diff;
-	  if(t_now > rtcStore.s_time) {
-		  t_diff = t_now - rtcStore.s_time;
-	  }else {
-		  t_diff = (0xffffffff - rtcStore.s_time) + t_now;
-	  }
-	  rtcStore.s_cpm++;
-	  if(t_diff >= T_REPORT_MS) { // time to report!
-		  if(rtcStore.s_report) {
-			  cpm = (rtcStore.s_cpm * t_diff) / T_REPORT_MS;
-			  rtcStore.s_cpm = 0;
-			  rtcStore.s_report = 0;
-		  }else {
-			  rtcStore.s_cpm--;
-			  rtcStore.s_report = 1;
-			  system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
-			  system_deep_sleep_set_option(1);	// enable radio after wakeup
-			  system_deep_sleep(2); // wake up immediately
-		  }
-	  }else {
-		  rtcStore.s_time = t_now;
-		  system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
-		  system_deep_sleep_set_option(4);	// no radio after wakeup
-		  system_deep_sleep(0); // wait for falling edge on reset pin
-	  }
-
-	  if((rtcStore.s_beep) || (rtcStore.s_cpm > CPM_BEEP_LIMIT)) {
-		analogWriteFreq(2000);
-		pinMode(beep_pin,OUTPUT);
-		analogWrite(beep_pin,PWMRANGE>>1);
-		delay(10);
-		analogWrite(beep_pin,0);
-    }
+	if(rtcStore.s_valid != CFG_VALID) {
+		rtcStore.s_cpm = 0;
+		rtcStore.s_time = system_get_time()/1000;
+		rtcStore.s_beep = 0;
+		rtcStore.s_report = 0;
+		rtcStore.sensorState = sensor_unknown;
+		rtcStore.s_valid = CFG_VALID;
+		cpm = 0;
+	}else {
+		if((rtcStore.s_beep) || (rtcStore.s_cpm > CPM_BEEP_LIMIT)) {
+			analogWriteFreq(2000);
+			pinMode(beep_pin,OUTPUT);
+			analogWrite(beep_pin,PWMRANGE>>1);
+			delay(10);
+			analogWrite(beep_pin,0);
+		}
 
 
 #ifdef DEBUG
-	  digitalWrite(led_pin, LOW);
-	  delay(50);
-	  digitalWrite(led_pin, HIGH);
+		digitalWrite(led_pin, LOW);
+		delay(50);
+		digitalWrite(led_pin, HIGH);
 #endif
-  }
+
+		uint32_t t_diff;
+		if(t_now > rtcStore.s_time) {
+			t_diff = t_now - rtcStore.s_time;
+		}else {
+			t_diff = (0xffffffff - rtcStore.s_time) + t_now;
+		}
+		rtcStore.s_cpm++;
+		if(t_diff >= T_REPORT_MS) { // time to report!
+			if(rtcStore.s_report) {
+				cpm = (rtcStore.s_cpm * t_diff) / T_REPORT_MS;
+				rtcStore.s_cpm = 0;
+				rtcStore.s_report = 0;
+			}else {
+				rtcStore.s_cpm--;
+				rtcStore.s_report = 1;
+				system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
+				system_deep_sleep_set_option(1);	// enable radio after wakeup
+				system_deep_sleep(2); // wake up immediately
+			}
+		}else {
+			rtcStore.s_time = t_now;
+			system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
+			system_deep_sleep_set_option(4);	// no radio after wakeup
+			system_deep_sleep(0); // wait for falling edge on reset pin
+		}
+
+	}
 
 
-  Serial.begin(115200);
+	Serial.begin(115200);
 
 	//reset saved settings
-//	wifiManager.resetSettings();
-  if(rtcStore.sensorState != sensor_standalone) {
-	  struct rst_info *thisreset;
-	  thisreset = system_get_rst_info();
+	//	wifiManager.resetSettings();
+	if(rtcStore.sensorState != sensor_standalone) {
+		struct rst_info *thisreset;
+		thisreset = system_get_rst_info();
 
-	  if(thisreset->reason != REASON_DEEP_SLEEP_AWAKE) {
-		wifiManager.setTimeout(180);
-	  }else {
-		wifiManager.setTimeout(20);
-	  }
+		if(thisreset->reason != REASON_DEEP_SLEEP_AWAKE) {
+			wifiManager.setTimeout(180);
+		}else {
+			wifiManager.setTimeout(20);
+		}
 
 		wifiManager.setAPCallback(configModeCallback);
 
 
 		ArduinoOTA.onStart([]() {
 			rtcStore.sensorState = sensor_update;
-		  });
+		});
 		ArduinoOTA.onEnd([]() {
 			//invalidate config
 			rtcStore.s_valid = 0;
 			system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
-		  });
+		});
 		ArduinoOTA.onError([](ota_error_t error) {
 			Serial.printf("Error[%u]: ", error);
 			rtcStore.sensorState = sensor_connected;
-		  });
+		});
 
 		if(wifiManager.autoConnect(ap_hostname)) {
-		//if you get here you have connected to the WiFi
+			//if you get here you have connected to the WiFi
 			Serial.println("connected... :)");
 			rtcStore.sensorState = sensor_connected;
 			ArduinoOTA.setHostname(ap_hostname);
 			ArduinoOTA.begin();
 		}else {
-		//was unable to connect and timeout
+			//was unable to connect and timeout
 			Serial.println("No connection was possible within 3 minutes... :(");
 			rtcStore.sensorState = sensor_standalone;
 			rtcStore.s_beep = 1;
 		}
-  }else {
-  	  rtcStore.s_time = millis();
-	  system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
-	  system_deep_sleep_set_option(4);	// no radio after wakeup
-	  system_deep_sleep(0); // wait for falling edge on reset pin
-  }
+	}else {
+		rtcStore.s_time = millis();
+		system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
+		system_deep_sleep_set_option(4);	// no radio after wakeup
+		system_deep_sleep(0); // wait for falling edge on reset pin
+	}
 }
 
 void loop() {
 
 #ifdef WDT_ENABLED
-    ESP.wdtFeed();
+	ESP.wdtFeed();
 #endif
 
-    if(rtcStore.sensorState == sensor_connected) {
-    	uint16_t voltage = ESP.getVcc();
-    	if(!sendUpdate(voltage,cpm)) {
-    	  rtcStore.s_beep = 1;
+	if(rtcStore.sensorState == sensor_connected) {
+		uint16_t voltage = ESP.getVcc();
+		if(!sendUpdate(voltage,cpm)) {
+			rtcStore.s_beep = 1;
 		}
-  	  rtcStore.s_time = millis();
-	  system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
-	  system_deep_sleep_set_option(4);	// no radio after wakeup
-	  system_deep_sleep(0); // wait for falling edge on reset pin
+		rtcStore.s_time = millis();
+		system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
+		system_deep_sleep_set_option(4);	// no radio after wakeup
+		system_deep_sleep(0); // wait for falling edge on reset pin
 
-    }
+	}
 
-    if(rtcStore.sensorState == sensor_update) {
-    	ArduinoOTA.handle();
-    }
+	if(rtcStore.sensorState == sensor_update) {
+		ArduinoOTA.handle();
+	}
 }
 
 bool sendUpdate(uint16_t voltage, uint16_t cpm) {
