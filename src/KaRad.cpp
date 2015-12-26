@@ -81,9 +81,6 @@ uint32_t cpm;
 #define DEBUG
 
 void setup() {
-#ifdef WDT_ENABLED
-    ESP.wdtEnable(10000);
-#endif
     bool report = false;
     //the wakeup was caused by a new impulse form the GM tube
     uint32_t t_now = millis();//we store ms not us
@@ -161,12 +158,14 @@ void setup() {
 
 
         ArduinoOTA.onStart([]() {
+            digitalWrite(led_pin, LOW);
             rtcStore.sensorState = sensor_update;
         });
         ArduinoOTA.onEnd([]() {
             //invalidate config
             rtcStore.s_valid = 0;
             system_rtc_mem_write(65, &rtcStore, sizeof(rtcStore));
+            digitalWrite(led_pin, HIGH);
         });
         ArduinoOTA.onError([](ota_error_t error) {
             Serial.printf("Error[%u]: ", error);
