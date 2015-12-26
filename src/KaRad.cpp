@@ -77,6 +77,7 @@ typedef struct {
 
 saved_t rtcStore;
 uint32_t cpm;
+uint16_t voltage;
 
 #define DEBUG
 
@@ -141,6 +142,7 @@ void setup() {
 
 
     Serial.begin(115200);
+    voltage = ESP.getVcc();
 
     //reset saved settings
     //	wifiManager.resetSettings();
@@ -199,7 +201,6 @@ void loop() {
 #endif
 
     if(rtcStore.sensorState == sensor_connected) {
-        uint16_t voltage = ESP.getVcc();
         if(!sendUpdate(voltage,cpm)) {
             rtcStore.s_beep = 1;
         }
